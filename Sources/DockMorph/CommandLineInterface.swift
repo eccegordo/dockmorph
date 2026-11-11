@@ -4,7 +4,7 @@ import Foundation
 ///   DockMorph --list            list the sets (the active one is starred)
 ///   DockMorph --apply <name>    switch the Dock to a set
 ///   DockMorph --current         print the apps pinned in the Dock right now
-///   DockMorph --add-default-set add a set with macOS's built-in default Dock apps
+///   DockMorph --revert <name>   restore a built-in set to its default apps
 enum CommandLineInterface {
     /// Returns an exit status when the arguments were a CLI command, nil to launch the app.
     static func run(_ arguments: [String]) -> Int32? {
@@ -13,7 +13,9 @@ enum CommandLineInterface {
         case "--list":
             let store = DockStore.shared
             for set in store.sets {
-                print("\(set.id == store.activeSetID ? "*" : " ") \(set.name) (\(set.apps.count) apps)")
+                let flags = [set.builtIn != nil ? "built-in" : nil, set.locked ? "locked" : nil].compactMap { $0 }
+                let suffix = flags.isEmpty ? "" : " [" + flags.joined(separator: ", ") + "]"
+                print("\(set.id == store.activeSetID ? "*" : " ") \(set.name) (\(set.apps.count) apps)\(suffix)")
             }
             return 0
 
@@ -38,17 +40,27 @@ enum CommandLineInterface {
             print("Dock switched to \(set.name)")
             return 0
 
-        case "--add-default-set":
+        case "--revert":
+            let name = arguments.dropFirst().joined(separator: " ")
             let store = DockStore.shared
-            let set = store.addMacOSDefaultSet()
+            guard let set = store.sets.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }),
+                  set.builtIn != nil else {
+                FileHandle.standardError.write(Data("No built-in dock set named \"\(name)\".\n".utf8))
+                return 1
+            }
+            guard !set.locked else {
+                FileHandle.standardError.write(Data("\(set.name) is locked. Unlock it in Dock Morph first.\n".utf8))
+                return 1
+            }
+            store.revertToDefault(set.id)
             DistributedNotificationCenter.default().postNotificationName(
                 DockStore.changedNotification, object: nil, userInfo: nil, deliverImmediately: true)
-            print("Added \(set.name) (\(set.apps.count) apps)")
+            print("Reverted \(set.name) to its default apps")
             return 0
 
         case "--help", "-h":
             print("""
-            usage: DockMorph [--list | --apply <set name> | --current | --add-default-set]
+            usage: DockMorph [--list | --apply <set name> | --current | --revert <set name>]
             With no arguments, starts the menu bar app.
             """)
             return 0

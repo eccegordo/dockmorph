@@ -3,11 +3,11 @@
 A macOS menu bar app that switches the Dock between named sets of apps — one for creative work,
 one for research, one for development, and so on.
 
-![Dock Morph's editor window showing dock sets on the left and the apps in the selected set](docs/screenshot.png)
+![Dock Morph's editor window showing dock sets on the left and the locked, built-in macOS Default Dock set selected](docs/screenshot.png)
 
-A small, focused set — just Logic Pro for music work — currently active in the Dock:
+A small, focused set — just Logic Pro for music work:
 
-![Dock Morph with the Creative Work Music set selected and marked as the active Dock](docs/screenshot-creative.png)
+![Dock Morph with the Creative Work Music set selected](docs/screenshot-creative.png)
 
 ## Build and run
 
@@ -29,6 +29,10 @@ copy `build/Dock Morph.app` to `/Applications` and turn on **Launch at Login** f
   the active set's symbol.
 - **Edit Dock Sets…** — add, rename, duplicate and delete sets; add apps with **Add Apps…** or by
   dragging them in from Finder; drag rows to reorder.
+- **macOS Default Dock** is built in: it holds the apps Apple ships in a new Mac's Dock, can't be
+  deleted, and **Revert** restores it if you've changed it.
+- **Lock** (the padlock next to a set's name) stops a set from being renamed, edited or deleted
+  until you unlock it. The built-in set starts out locked.
 - **New Set from Current Dock** — arrange the Dock by hand, then capture it as a set.
 
 Switching rewrites the app section of the Dock (`persistent-apps` in `com.apple.dock`) and runs
@@ -43,6 +47,10 @@ that are running but not in the set still show in the Dock until you quit them, 
 
 ```bash
 "build/Dock Morph.app/Contents/MacOS/DockMorph" --apply "Development"
+```
+
+```bash
+"build/Dock Morph.app/Contents/MacOS/DockMorph" --revert "macOS Default Dock"
 ```
 
 ## Files

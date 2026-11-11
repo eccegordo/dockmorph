@@ -21,7 +21,7 @@ struct EditorView: View {
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-                .frame(width: 220)
+                .frame(width: 260)
             Divider()
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -55,6 +55,12 @@ struct EditorView: View {
                         Text(set.name.isEmpty ? "Untitled" : set.name)
                             .lineLimit(1)
                         Spacer()
+                        if set.locked {
+                            Image(systemName: "lock.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .help("Locked")
+                        }
                         if set.id == store.activeSetID {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
@@ -68,7 +74,14 @@ struct EditorView: View {
                             ui.selection = store.addSet(name: "\(set.name) Copy", apps: set.apps).id
                         }
                         Divider()
+                        Button(set.locked ? "Unlock" : "Lock") { store.setLocked(!set.locked, for: set.id) }
+                        if set.builtIn != nil {
+                            Button("Revert to Default") { store.revertToDefault(set.id) }
+                                .disabled(set.locked || !store.isModified(set))
+                        }
+                        Divider()
                         Button("Delete", role: .destructive) { delete(set.id) }
+                            .disabled(!store.canRemove(set))
                     }
                 }
                 .onMove { store.sets.move(fromOffsets: $0, toOffset: $1) }
@@ -81,7 +94,6 @@ struct EditorView: View {
                 Menu {
                     Button("Empty Set") { ui.selection = store.addSet().id }
                     Button("From Current Dock") { ui.selection = store.addSetFromCurrentDock().id }
-                    Button("macOS Default Dock") { ui.selection = store.addMacOSDefaultSet().id }
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -96,8 +108,8 @@ struct EditorView: View {
                     Image(systemName: "minus")
                 }
                 .buttonStyle(.borderless)
-                .disabled(ui.selection == nil)
-                .help("Delete the selected dock set")
+                .disabled(!(store.sets.first { $0.id == ui.selection }.map(store.canRemove) ?? false))
+                .help("Delete the selected dock set (built-in and locked sets can't be deleted)")
 
                 Spacer()
             }
@@ -136,7 +148,9 @@ struct EditorView: View {
 
     private func delete(_ id: UUID) {
         store.remove(id)
-        if ui.selection == id { ui.selection = store.sets.first?.id }
+        if ui.selection == id, !store.sets.contains(where: { $0.id == id }) {
+            ui.selection = store.sets.first?.id
+        }
     }
 }
 
@@ -181,6 +195,7 @@ struct SetDetailView: View {
             footer
         }
         .dropDestination(for: URL.self) { urls, _ in
+            guard !set.locked else { return false }
             add(urls)
             return true
         }
@@ -205,11 +220,22 @@ struct SetDetailView: View {
                     .frame(width: 22)
             }
             .fixedSize()
+            .disabled(set.locked)
             .help("Menu bar icon for this set")
 
             TextField("Set name", text: $set.name)
                 .textFieldStyle(.roundedBorder)
                 .font(.title3)
+                .disabled(set.locked)
+
+            Button {
+                set.locked.toggle()
+            } label: {
+                Image(systemName: set.locked ? "lock.fill" : "lock.open")
+                    .frame(width: 18)
+            }
+            .help(set.locked ? "Locked — click to allow changes to this set"
+                             : "Lock this set so it can't be changed or deleted")
 
             Button(isActive ? "Update Dock" : "Switch Dock to This Set") {
                 store.apply(set)
@@ -227,7 +253,7 @@ struct SetDetailView: View {
                 .foregroundStyle(.secondary)
             Text("No apps in this set")
                 .font(.headline)
-            Text("Click Add Apps, or drag apps here from Finder.")
+            Text(set.locked ? "Unlock this set to add apps." : "Click Add Apps, or drag apps here from Finder.")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -245,10 +271,11 @@ struct SetDetailView: View {
                         Button("Remove from Set", role: .destructive) {
                             set.apps.removeAll { $0 == path }
                         }
+                        .disabled(set.locked)
                     }
             }
-            .onMove { set.apps.move(fromOffsets: $0, toOffset: $1) }
-            .onDelete { set.apps.remove(atOffsets: $0) }
+            .onMove(perform: set.locked ? nil : { set.apps.move(fromOffsets: $0, toOffset: $1) })
+            .onDelete(perform: set.locked ? nil : { set.apps.remove(atOffsets: $0) })
         }
         .listStyle(.inset(alternatesRowBackgrounds: true))
         .onDeleteCommand(perform: removeSelected)
@@ -257,19 +284,28 @@ struct SetDetailView: View {
     private var footer: some View {
         HStack {
             Button("Add Apps…", action: chooseApps)
+                .disabled(set.locked)
             Button("Remove", action: removeSelected)
-                .disabled(ui.selectedApps.isEmpty)
+                .disabled(set.locked || ui.selectedApps.isEmpty)
             Spacer()
-            Text(set.apps.count == 1 ? "1 app" : "\(set.apps.count) apps")
+            Text((set.apps.count == 1 ? "1 app" : "\(set.apps.count) apps") + (set.locked ? " · Locked" : ""))
                 .foregroundStyle(.secondary)
             Spacer()
-            Button("Replace with Current Dock") {
+            if set.builtIn != nil {
+                Button("Revert") { store.revertToDefault(set.id) }
+                    .fixedSize()
+                    .disabled(set.locked || !store.isModified(set))
+                    .help("Restore this built-in set's original name, icon and apps")
+            }
+            Button("Use Current Dock") {
                 if set.apps.isEmpty {
                     set.apps = DockController.currentAppPaths()
                 } else {
                     ui.confirmReplace = true
                 }
             }
+            .fixedSize()
+            .disabled(set.locked)
         }
         .padding(12)
     }
@@ -295,6 +331,7 @@ struct SetDetailView: View {
     }
 
     private func removeSelected() {
+        guard !set.locked else { return }
         set.apps.removeAll { ui.selectedApps.contains($0) }
         ui.selectedApps.removeAll()
     }
