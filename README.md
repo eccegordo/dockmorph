@@ -3,6 +3,12 @@
 A macOS menu bar app that switches the Dock between named sets of apps — one for creative work,
 one for research, one for development, and so on.
 
+![Dock Morph's editor window showing dock sets on the left and the apps in the selected set](docs/screenshot.png)
+
+A small, focused set — just Logic Pro for music work — currently active in the Dock:
+
+![Dock Morph with the Creative Work Music set selected and marked as the active Dock](docs/screenshot-creative.png)
+
 ## Build and run
 
 ```bash

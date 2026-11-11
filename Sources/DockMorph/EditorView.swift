@@ -28,6 +28,11 @@ struct EditorView: View {
         }
         .frame(minWidth: 680, minHeight: 420)
         .onAppear {
+            // `-selectSet "<name>"` on the command line opens the window on that set (used for screenshots).
+            if let name = UserDefaults.standard.string(forKey: "selectSet"),
+               let set = store.sets.first(where: { $0.name == name }), ui.selection == nil {
+                ui.selection = set.id
+            }
             if ui.selection == nil { ui.selection = store.activeSetID ?? store.sets.first?.id }
         }
         .alert("Dock Morph", isPresented: Binding(
